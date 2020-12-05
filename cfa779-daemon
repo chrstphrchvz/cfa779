@@ -15,7 +15,7 @@ my $struct_len =
     ($Config{i16size} * 2) +    # input_event.type, input_event.code
     ($Config{i32size});
 
-my $dev = '/sys/bus/i2c/devices/0-0020/';
+my $dev = '/sys/bus/i2c/devices/1-0020/';
 
 my $done = AnyEvent->condvar;
 
@@ -85,7 +85,7 @@ sub redraw_lcd {
     }
 }
 
-my $fh = IO::File->new("< /dev/input/event1");
+my $fh = IO::File->new("< /dev/input/event0");
 my $wait_for_input = AnyEvent->io (
     fh   => $fh,
     poll => "r",

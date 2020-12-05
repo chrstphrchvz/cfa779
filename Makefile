@@ -1,3 +1,5 @@
+CFLAGS_cfa779.o := -fno-stack-protector
+
 obj-m += cfa779.o
 
 KVERSION = $(shell uname -r)

@@ -40,7 +40,7 @@
 #define CFA779_NUM_ROWS     2   /* LCD rows */
 #define CFA779_NUM_KEYS     5   /* keypad keys */
 
-#define POLL_INTERVAL_DEFAULT   100
+#define POLL_INTERVAL_DEFAULT   1000
 
 /* insmod options */
 static unsigned int debug = 0;
@@ -172,8 +172,8 @@ static int
 lcd_check_reply (struct i2c_client *client, u8 code, int len, char *buf)
 {
     u8 tb[256];
-    int i;
-    u16 crc;
+    int i, idx;
+    u16 computed_crc, received_crc;
 
     i = i2c_smbus_read_block_data (client, code, &tb[1]);
     tb[0] = i;
@@ -186,12 +186,19 @@ lcd_check_reply (struct i2c_client *client, u8 code, int len, char *buf)
                code, i);
           return 0;
       }
-    crc = calc_crc (tb, i - 1);
-    if ((tb[i - 1] != (crc & 0xFF)) || (tb[i] != ((crc >> 8) & 0xFF)))
+    received_crc = tb[i];
+    received_crc <<= 8;
+    received_crc |= tb[i - 1];
+    computed_crc = calc_crc (tb, i - 1);
+          printk ("cfa779: Received packet (cmd: 0x%02X rcrc 0x%04hx ccrc 0x%04hx)\n",
+                  code, received_crc, computed_crc);
+          printk ("cfa779: packet contents ");
+          for (idx = 1; idx <= i; idx++)
+          printk ("%02hhx ", tb[idx]);
+          printk ("\n");
+    if (received_crc != computed_crc)
       {
-          printk ("cfa779: Received packet with invalid CRC (cmd: 0x%02X)\n",
-                  code);
-          return 0;
+          //return 0;
       }
     if ((len != -1) && ((len + 3) != i))
         printk ("cfa779: Invalid packet length: %d, expected: %d\n", len + 3,
@@ -392,12 +399,18 @@ lcd_set_text (struct device *dev, const char *buf, size_t count, u8 line)
 {
     char val[CFA779_NUM_COLUMNS];
     struct i2c_client *client = to_i2c_client (dev);
-    size_t mycnt;
+    size_t mycnt, idx;
+    char buf2hex[3*CFA779_NUM_COLUMNS+1];
+    buf2hex[0] = '\0';
 
     memset (val, 0x20, sizeof (val));
     mycnt = count;
     if (mycnt > CFA779_NUM_COLUMNS)
         mycnt = CFA779_NUM_COLUMNS;
+    for (idx = 0; idx < mycnt; idx++) {
+        snprintf(&buf2hex[3*idx], 4, "%02hhx ", buf[idx]);
+    }
+    printk("lcd_set_text buf %s\n", buf2hex);
     memcpy (val, buf, mycnt);
     lcd_send_packet (client, line, 16, val);
 //lcd_check_reply(client,line,0,NULL);
@@ -449,6 +462,7 @@ lcd_send_packet (struct i2c_client *client, u8 idx, int len, char *data)
 {
     u8 val[24];
     u16 crc;
+    s32 result;
     if (len > 0x10)
         len = 0x10;
 
@@ -460,7 +474,8 @@ lcd_send_packet (struct i2c_client *client, u8 idx, int len, char *data)
 
     val[len] = crc & 0xFF;
     val[len + 1] = (crc >> 8) & 0xFF;
-    i2c_smbus_write_block_data (client, idx, len, &val[2]);
+    result = i2c_smbus_write_block_data (client, idx, len, &val[2]);
+    printk("sent packet idx 0x%02x result %d\n", idx, result);
 }
 
 
